@@ -1,0 +1,355 @@
+---
+title: "CBB Win Prediction"
+author: "Mike Prodo"
+date: '2022-09-12'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(rvest)
+library(corrplot)
+library(car)
+library(mgcv)
+library(readxl)
+```
+
+```{r Read_Data}
+#2021-22
+page = read_html("https://www.sports-reference.com/cbb/seasons/2022-school-stats.html#basic_school_stats")
+tables = html_nodes(page,"table")
+data = html_table(tables[1], fill=TRUE)
+d21 = as.data.frame(data[[1]])
+
+#2020-21
+page = read_html("https://www.sports-reference.com/cbb/seasons/2021-school-stats.html#basic_school_stats")
+tables = html_nodes(page,"table")
+data = html_table(tables[1], fill=TRUE)
+d20 = as.data.frame(data[[1]])
+
+#2019-20
+page = read_html("https://www.sports-reference.com/cbb/seasons/2020-school-stats.html#basic_school_stats")
+tables = html_nodes(page,"table")
+data = html_table(tables[1], fill=TRUE)
+d19 = as.data.frame(data[[1]])
+
+#2018-19
+page = read_html("https://www.sports-reference.com/cbb/seasons/2019-school-stats.html#basic_school_stats")
+tables = html_nodes(page,"table")
+data = html_table(tables[1], fill=TRUE)
+d18 = as.data.frame(data[[1]])
+
+#2017-18
+page = read_html("https://www.sports-reference.com/cbb/seasons/2018-school-stats.html#basic_school_stats")
+tables = html_nodes(page,"table")
+data = html_table(tables[1], fill=TRUE)
+d17 = as.data.frame(data[[1]])
+```
+
+```{r Clean_Data}
+# Remove NA columns
+d21 = d21[,c(-1,-9,-12,-15,-18,-21)]
+d20 = d20[,c(-1,-9,-12,-15,-18,-21)]
+d19 = d19[,c(-1,-9,-12,-15,-18,-21)]
+d18 = d18[,c(-1,-9,-12,-15,-18,-21)]
+d17 = d17[,c(-1,-9,-12,-15,-18,-21)]
+
+# Remove rows with labels
+d21 = d21[-seq(1,nrow(d21),by=22),]
+d21 = d21[-seq(21,nrow(d21),by=21),]
+d20 = d20[-seq(1,nrow(d20),by=22),]
+d20 = d20[-seq(21,nrow(d20),by=21),]
+d19 = d19[-seq(1,nrow(d19),by=22),]
+d19 = d19[-seq(21,nrow(d19),by=21),]
+d18 = d18[-seq(1,nrow(d18),by=22),]
+d18 = d18[-seq(21,nrow(d18),by=21),]
+d17 = d17[-seq(1,nrow(d17),by=22),]
+d17 = d17[-seq(21,nrow(d17),by=21),]
+
+# Remove 'NCAA' in school names
+for (i in 1:nrow(d21)){
+  if (grepl("NCAA",d21[i,1])){
+    d21[i,1] = sub("NCAA","",d21[i,1])
+    d21[i,1] = substr(d21[i,1],1,nchar(d21[i,1])-1)
+  }
+}
+for (i in 1:nrow(d20)){
+  if (grepl("NCAA",d20[i,1])){
+    d20[i,1] = sub("NCAA","",d20[i,1])
+    d20[i,1] = substr(d20[i,1],1,nchar(d20[i,1])-1)
+  }
+}
+for (i in 1:nrow(d19)){
+  if (grepl("NCAA",d19[i,1])){
+    d19[i,1] = sub("NCAA","",d19[i,1])
+    d19[i,1] = substr(d19[i,1],1,nchar(d19[i,1])-1)
+  }
+}
+for (i in 1:nrow(d18)){
+  if (grepl("NCAA",d18[i,1])){
+    d18[i,1] = sub("NCAA","",d18[i,1])
+    d18[i,1] = substr(d18[i,1],1,nchar(d18[i,1])-1)
+  }
+}
+for (i in 1:nrow(d17)){
+  if (grepl("NCAA",d17[i,1])){
+    d17[i,1] = sub("NCAA","",d17[i,1])
+    d17[i,1] = substr(d17[i,1],1,nchar(d17[i,1])-1)
+  }
+}
+
+# Column Names
+colnames(d21) = c("School","G","W","L","W-L%","SRS","SOS","Conf W","Conf L","Home W","Home L","Away W","Away L","Tm Points","Opp Points","MP",
+                  "FG","FGA","FG%","3P","3PA","3P%","FT","FTA","FT%","ORB","TRB","AST","STL","BLK","TOV","PF")
+colnames(d20) = c("School","G","W","L","W-L%","SRS","SOS","Conf W","Conf L","Home W","Home L","Away W","Away L","Tm Points","Opp Points","MP",
+                  "FG","FGA","FG%","3P","3PA","3P%","FT","FTA","FT%","ORB","TRB","AST","STL","BLK","TOV","PF")
+colnames(d19) = c("School","G","W","L","W-L%","SRS","SOS","Conf W","Conf L","Home W","Home L","Away W","Away L","Tm Points","Opp Points","MP",
+                  "FG","FGA","FG%","3P","3PA","3P%","FT","FTA","FT%","ORB","TRB","AST","STL","BLK","TOV","PF")
+colnames(d18) = c("School","G","W","L","W-L%","SRS","SOS","Conf W","Conf L","Home W","Home L","Away W","Away L","Tm Points","Opp Points","MP",
+                  "FG","FGA","FG%","3P","3PA","3P%","FT","FTA","FT%","ORB","TRB","AST","STL","BLK","TOV","PF")
+colnames(d17) = c("School","G","W","L","W-L%","SRS","SOS","Conf W","Conf L","Home W","Home L","Away W","Away L","Tm Points","Opp Points","MP",
+                  "FG","FGA","FG%","3P","3PA","3P%","FT","FTA","FT%","ORB","TRB","AST","STL","BLK","TOV","PF")
+
+# Format: convert numbers from character to numeric
+for (i in 2:ncol(d21)){
+  d21[,i] = as.numeric(d21[,i])
+}
+for (i in 2:ncol(d20)){
+  d20[,i] = as.numeric(d20[,i])
+}
+for (i in 2:ncol(d19)){
+  d19[,i] = as.numeric(d19[,i])
+}
+for (i in 2:ncol(d18)){
+  d18[,i] = as.numeric(d18[,i])
+}
+for (i in 2:ncol(d17)){
+  d17[,i] = as.numeric(d17[,i])
+}
+
+# Add year column
+d21$Year = 2021
+d20$Year = 2020
+d19$Year = 2019
+d18$Year = 2018
+d17$Year = 2017
+
+# Merge into one data frame
+cbb = rbind(d21,d20,d19,d18,d17)
+
+# Remove rows with NA
+cbb = cbb[complete.cases(cbb),]
+
+# Add 'PPG', 'Opp PPG', and 'TOV pG' variables
+cbb$PPG = cbb$`Tm Points`/cbb$G
+cbb$`Opp PPG` = cbb$`Opp Points`/cbb$G
+cbb$`TOV pG` = cbb$TOV/cbb$G
+```
+
+```{r add_next_year_stats}
+cbb$Wins = NA
+cbb$SoS = NA
+cbb$WinPer = NA
+cbb$Games = NA
+for (i in 1:nrow(cbb)){
+  if (TRUE %in% (cbb$School == cbb$School[i] & cbb$Year == (cbb$Year[i] + 1))){
+    cbb$Wins[i] = cbb$W[which(cbb$School == cbb$School[i] & cbb$Year == (cbb$Year[i] + 1))]
+    cbb$SoS[i] = cbb$SOS[which(cbb$School == cbb$School[i] & cbb$Year == (cbb$Year[i] + 1))]
+    cbb$WinPer[i] = cbb$Wins[i]/(cbb$G[which(cbb$School == cbb$School[i] & cbb$Year == (cbb$Year[i] + 1))])
+    cbb$Games[i] = cbb$G[which(cbb$School == cbb$School[i] & cbb$Year == (cbb$Year[i] + 1))]
+  }
+}
+
+# cbb dataframe to use for modeling
+cbb_model = cbb[cbb$Year != 2021,]
+cbb_model = cbb_model[complete.cases(cbb_model),]
+colnames(cbb_model)[3] = "LS Wins"
+```
+
+```{r Visuals}
+# Side by Side Boxplot Team Wins Each Year
+boxplot(cbb$W ~ cbb$Year, main = "Team Wins by Year", xlab = "Year", ylab = "Wins", col = "steelblue")
+
+# Correlation plot of "interested" variables
+pairs(cbb[,c(3,7,19,22,25,34,35,36)], main = "Correlation Plot of Stats")
+
+# Correlation plot of various 'Win' variables
+pairs(cbb[,c(3,8,10,12)], main = "Correlation Plot of 'Win' Variables")
+```
+
+
+```{r Visuals}
+# Correlation plot of "interested" variables
+pairs(cbb_model[,c(37,3,38,19,22,25,34,35,36)], main = "Correlation Plot of Stats")
+# Don't use variables LS Wins, FG%, and 3P%
+
+# Side by Side Boxplot Team Wins Each Year
+boxplot(cbb$W ~ cbb$Year, main = "Team Wins by Year", xlab = "Year", ylab = "Wins", col = "steelblue")
+# 2017: Villanova-36 (Tourney Champs, 2nd Most Games)
+# 2018: Virginia-35 (Tourney Champs, T-3rd Games)
+# 2019: Gonzaga-31 (T-19th Games), Kennesaw State-1 (T-7th lowest Games)
+# 2020: Gonzaga-31 (Championship, T-5th Games), Baylor-28 (Tourney Champs, T-20th Games), Houston-28 (Final Four, T-5th Games)
+
+# S by S BP SoS
+boxplot(cbb_model$SoS ~ cbb_model$Year, main = "Team Strength of Schedule by Year", xlab = "Year", ylab = "Strength of Schedule", col= "steelblue")
+# no outliers
+
+# S by S BP FT%
+boxplot(cbb_model$`FT%` ~ cbb_model$Year, main = "Free Throw % by Year", xlab = "Year", ylab = "Free Throw %", col = "steelblue")
+# 2017: William & Mary (0.810), Central Michigan (0.806), Marquette (0.805), Rider (0.608), Florida International (0.609), Little Rock (0.610),
+#       Northwestern State (0.611)
+# 2018: Incarnate Word (0.810), Manhattan (0.584), Saint Louis (0.598)
+# 2019: Saint Louis (0.580), Arkansas-Pine Bluff (0.588)
+# 2020: Oral Roberts (0.821), Colorado (0.819), Virginia (0.816), Maine (0.569), Miss Valley State (0.572), New Mexico (0.599)
+
+# S by S BP PPG
+boxplot(cbb_model$PPG ~ cbb_model$Year, main = "Points per Game by Year", xlab = "Year", ylab = "Points Per Game", col = "steelblue")
+# 2017: Villanova (86.575)
+# 2018: Gonzaga (87.64865), Belmont (86.90909), North Carolina (85.80556), Manhattan (57.28125), Maryland-Eastern Shore (57.28125)
+# 2019: Gonzaga (87.42424), Arkansas-PineBluff (53.83333), Kennesaw State (55.24138), Virginia (57.03333), Fairfield (58.03125), Fordham (58.58065)
+# 2020: Gonzaga (90.96875), Colgate (85.1875, 16G), Fordham (51.78571, 14G), Maine (53.11111, 9G), Chicago State (55.44444, 9G), Miss Valley State (56.83333)
+
+# S by S BP Opp PPG
+boxplot(cbb_model$`Opp PPG` ~ cbb_model$Year, main = "Opponent Points per Game by Year", xlab = "Opponent PPG", ylab = "Wins", col = "steelblue")
+# 2017: Savannah State (93.46875), The Citadel (88.09375), North Florida (87.06061), Chicago State (86.12500), Virginia (54), Cincinnati (57.52778)
+# 2018: The Citadel (86.13333), Virginia (56.10526), Michigan (58.32432)
+# 2019: Houston Christian (93.89655), Miss Valley State (89.66667), Delaware State (82.96875), Central Arkansas (82.35484), Samford (82.15152),
+#       Tennessee-Martin (82.13793), Chicago State (81.79310), Western Illinois (81.76923), Virginia (52.36667), Liberty (53.82353)
+# 2020: Chicago State (88.66667, 9G), Miss Valley State (87.375), Delaware State (85.73684), Howard (84.8, 5G), Portland (83.23810), Loyola (IL) (56.06452)
+
+# S by S BP TOV pG
+boxplot(cbb_model$`TOV pG` ~ cbb_model$Year, main = "Turnovers per Game by Year", xlab = "Year", ylab = "Turnovers per Game", col = "steelblue")
+# 2017: Northwestern State (17.10345), Alabama A&M (16.58065), Virginia (8.529412)
+# 2018: Western Carolina (18.03125), Coppin State (16.81818), Virginia (9), Michigan (9.027027)
+# 2019: Stephen F. Austin (17.74194), Central Arkansas (17.70968), Arkansas-Pine Bluff (17.7), Chicago State (17.68966), TexA&M Corp Chr (17.53125)
+
+outliers = data.frame(matrix(ncol=2,nrow=62))
+colnames(outliers) = c("School","Year")
+outliers$School = c("Villanova","Virginia","William & Mary","Central Michigan","Marquette","Rider","Florida International","Little Rock","Northwestern State","Savannah State","The Citadel","North Florida","Chicago State","Cincinnati","Alabama A&M","Virginia","Gonzaga","Kennesaw State","Incarnate Word","Manhattan","Saint Louis","Belmont","North Carolina","Maryland-Eastern Shore","The Citadel","Michigan","Western Carolina","Coppin State","Gonzaga","Kennesaw State","Baylor","Houston","Saint Louis","Arkansas-Pine Bluff","Virginia","Fairfield","Fordham","Houston Christian","Mississippi Valley State","Delaware State","Central Arkansas","Samford","Tennessee-Martin","Chicago State","Western Illinois","Liberty","Stephen F. Austin","Texas A&M-Corpus Christi","Gonzaga","Oral Roberts","Colorado","Virginia","Maine","Mississippi Valley State","New Mexico","Colgate","Fordham","Chicago State","Delaware State","Howard","Portland","Loyola (IL)")
+outliers$Year = c(rep(2017,15),rep(2018,13),rep(2019,20),rep(2020,14))
+for (i in 1:nrow(outliers)){
+  cbb_model$School[which(cbb_model$School == outliers$School[i] & cbb_model$Year == outliers$Year[i])] = NA
+}
+cbb_model = cbb_model[complete.cases(cbb_model),]
+```
+
+```{r splitting_data}
+cbb_final = cbb_model[,c(14,15,25,34:40)]
+colnames(cbb_final) = c("TmPts","OppPts","FTPer","PPG","OppPPG","TOVpG","Wins","SoS","WinPer","Games")
+set.seed(123)
+sample = sample(c(TRUE, FALSE), nrow(cbb_final), replace=TRUE, prob=c(0.75,0.25))
+train = cbb_final[sample, ]
+test = cbb_final[!sample, ]
+```
+
+```{r basic_lm}
+# Linear Model using Backward elimination
+full = lm(Wins ~ SoS + FTPer + PPG + OppPPG + TOVpG, data=train)
+summary(full) # Remove FT%
+
+model1 = lm(Wins ~ SoS + PPG + OppPPG + TOVpG, data=train)
+summary(model1) # Remove TOV pG
+
+model1 = lm(Wins ~ SoS + PPG + OppPPG, data=train)
+summary(model1) # Final model
+
+# Check if updated model is better than full model
+anova(model1, full, test="Chisq")
+# p-value=0.8116 - updated model is not better than full model
+
+# Check Assumptions
+par(mfrow = c(2, 2))
+plot(model1)
+durbinWatsonTest(model1)
+# Linearity: Random scatter in Residuals vs Fitted - Satisfied
+# Independence: Durbin-Watson test p-value=0 - not satisfied
+# Constant Variance: Constant spread from residual=0 line in Residuals vs Fitted - Satisfied
+# Normality: Normal QQ plot follows line x=y - Satisfied
+```
+
+```{r gam}
+model2 = gam(Wins ~ s(SoS) + s(FTPer) + s(PPG) + s(OppPPG) + s(TOVpG), data=train, family=gaussian)
+summary(model2) # SoS, FTPer, OppPPG can be linear
+
+full2 = gam(Wins ~ SoS + FTPer + s(PPG) + OppPPG + s(TOVpG), data=train, family=gaussian)
+summary(full2) # Remove FTPer
+
+model2 = gam(Wins ~ SoS + s(PPG) + OppPPG + s(TOVpG), data=train, family=gaussian)
+summary(model2) # Remove TOVpG
+
+model2 = gam(Wins ~ SoS + s(PPG) + OppPPG, data=train, family=gaussian)
+summary(model2)
+
+anova(model2,full2,test="Chisq")
+# p-value=0.3653 - updated model is not better than full model
+```
+
+```{r points_model}
+pt = train[,c(1,2,9)]
+e = seq(0.5,20,by=0.5)
+for (i in 1:length(e)){
+  pt[,(i+3)] = abs(pt$WinPer - pt$TmPts^e[i]/(pt$TmPts^e[i] + pt$OppPts^e[i]))
+}
+colnames(pt)[4:ncol(pt)] = e
+a = colMeans(pt[,4:ncol(pt)])
+a
+min(a)
+# exponent is between 4.5 and 5.5
+
+pt = train[,c(1,2,9)]
+e = seq(4.5,5.5,by=0.1)
+for (i in 1:length(e)){
+  pt[,(i+3)] = abs(pt$WinPer - pt$TmPts^e[i]/(pt$TmPts^e[i] + pt$OppPts^e[i]))
+}
+colnames(pt)[4:ncol(pt)] = e
+a = colMeans(pt[,4:ncol(pt)])
+a
+min(a)
+# exponent is 5
+
+pt = train[,c(1,2,9)]
+pt$Pred = pt$TmPts^5 / (pt$TmPts^5 + pt$OppPts^5)
+pt$AbsDiff = abs(pt$WinPer - pt$Pred)
+pt$PredWins = pt$Pred * train$Games
+```
+
+```{r testing}
+# Calculate predicted values
+pred = predict(full, test)
+pred1 = predict(model1, test)
+pred2 = predict(model2, test)
+pred3 = test$Games * (test$TmPts^5 / (test$TmPts^5 + test$OppPts^5))
+
+# Calculate Mean Squared Error of models
+mse = mean((test$Wins - pred) ^ 2)
+mse1 = mean((test$Wins - pred1) ^ 2)
+mse2 = mean((test$Wins - pred2) ^ 2)
+mse3 = mean((test$Wins - pred3) ^ 2)
+
+# Calculate adjusted R^2 Values of models
+adj_rsq = summary(full)$adj.r.squared
+adj_rsq1 = summary(model1)$adj.r.squared
+adj_rsq2 = summary(model2)$adj.r.squared
+rsq3 = 1-sum((train$Wins - pt$PredWins)^2)/sum((train$Wins - mean(train$Wins))^2)
+adj_rsq3 = 1 - ((1-rsq3)*(nrow(train)-1)/(nrow(train)-2-1))
+```
+
+
+```{r new}
+conferences = read_excel("C:/Users/mikep/Documents/NCAA Conferences.xlsx", sheet = 1)
+
+final = d21[,c(1,14,15)]
+
+final$Pred_W_Pct = 0
+final$Pred_Wins = 0
+final$Conf = ""
+for (i in 1:nrow(final)){
+  final$Pred_W_Pct[i] = final$`Tm Points`[i]^5 / (final$`Tm Points`[i]^5 + final$`Opp Points`[i]^5)
+  final$Pred_Wins[i] = final$Pred_W_Pct[i] * 30
+  final$Conf[i] = conferences$...3[which(conferences$...2 == final$School[i])]
+}
+final = final[order(final$Pred_W_Pct, decreasing=T),]
+final = final[order(final$Conf),]
+
+```
